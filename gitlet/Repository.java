@@ -1,6 +1,8 @@
 package gitlet;
 
 import java.io.File;
+import java.util.HashMap;
+import java.util.Map;
 import java.io.IOException;
 import gitlet.Utils;
 
@@ -22,14 +24,25 @@ public class Repository {
     /** The .gitlet directory. */
     public static final File GITLET_DIR = join(CWD, ".gitlet");
 
+    /** A dictionary that stores all the frequently used paths as File objects */
+    public static final Map<String, File> pathDict = new HashMap<>();
+
     private String head;
     private Commit headCommit;
 
 
     /** The Constructor of Repository instance */
     public Repository() {
-        head = "refs/heads/master";
-        headCommit = new Commit("initial commit", "null");
+        head = null;
+        headCommit = null;
+        pathDict.put("cwd", CWD);
+        pathDict.put("gitlet", GITLET_DIR);
+        pathDict.put("objects", join(GITLET_DIR, "objects"));
+        pathDict.put("refs", join(GITLET_DIR, "refs"));
+        pathDict.put("heads", join(GITLET_DIR, "refs", "heads"));
+        pathDict.put("remotes", join(GITLET_DIR, "refs", "remotes"));
+        pathDict.put("HEAD", join(GITLET_DIR, "HEAD"));
+        pathDict.put("index", join(GITLET_DIR, "index"));
     }
 
 
@@ -48,24 +61,20 @@ public class Repository {
 
         try {
             // establishing the directory stucture of .gitlet
-            GITLET_DIR.mkdir();
-            File objects = join(GITLET_DIR, "objects");
-            objects.mkdir();
-            File refs = join(GITLET_DIR, "refs");
-            refs.mkdir();
-            File heads = join(refs, "heads");
-            heads.mkdir();
-            File remotes = join(refs, "remotes");
-            remotes.mkdir();
-            File HEAD = join(GITLET_DIR, "HEAD");
-            HEAD.createNewFile();
-            File index = join(GITLET_DIR, "index");
-            index.createNewFile();
+            pathDict.get("gitlet").mkdir();
+            pathDict.get("objects").mkdir();
+            pathDict.get("refs").mkdir();
+            pathDict.get("heads").mkdir();
+            pathDict.get("remotes").mkdir();
+            pathDict.get("HEAD").createNewFile();
+            pathDict.get("index").createNewFile();
 
             // setting the initial commit
-            Utils.writeContents(HEAD, head);
-            headCommit.saveCommit(objects);
-            File masterBranch = join(heads, "master");
+            head = "refs/heads/master";
+            headCommit = new Commit("initial commit", "null");
+            Utils.writeContents(pathDict.get("HEAD"), head);
+            headCommit.saveCommit();
+            File masterBranch = join(pathDict.get("heads"), "master");
             String initialCommitHash = headCommit.getHash();
             Utils.writeContents(masterBranch, initialCommitHash);
 

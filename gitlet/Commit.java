@@ -72,7 +72,8 @@ public class Commit implements Serializable {
     /**  serialize current commit and save it to directory .gitlet/objects/
      *   the filename of this commit will be the SHA1 of its metadata and content
      * */
-    public void saveCommit(File objectDir) {
+    public void saveCommit() {
+        File objectDir = join(System.getProperty("user.dir"), ".gitlet", "objects");
         String commitHash = getHash();
         try {
             File saveDir = join(objectDir, commitHash.substring(0, 2));

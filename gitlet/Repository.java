@@ -1,6 +1,8 @@
 package gitlet;
 
 import java.io.File;
+import java.io.BufferedReader;
+import java.io.FileReader;
 import java.util.HashMap;
 import java.util.Map;
 import java.io.IOException;
@@ -248,6 +250,41 @@ public class Repository {
     }
 
 
+    /**  Prints out the ids of all commits that have the given commit message */
+    public void find(String message) {
+        BufferedReader reader;
+        boolean found = false;
+        try {
+            reader = new BufferedReader(new FileReader(pathDict.get("log")));
+            String dummyLine= reader.readLine();
+            String commitLine = "";
+            String messageLine = "";
+            while (dummyLine != null) {
+                commitLine = reader.readLine();
+                dummyLine = reader.readLine();
+                messageLine = reader.readLine();
+                // Commit with given message is found
+                if (messageLine.equals(message)) {
+                    System.out.println(commitLine.substring(7));
+                    found = true;
+                }
+                dummyLine = reader.readLine();
+                dummyLine = reader.readLine();
+            }
+            reader.close();
+        } catch (IOException e) {
+            System.out.println(e.getMessage());
+        }
+
+        if (!found) {
+            System.out.println("Found no commit with that message.");
+            System.exit(0);
+        }
+    }
+
+
+
+
     /** If the repo has been initialized, command "init" will cause failure;
      * If the repo hasn't been initialized, commands other than "init" will cause failure.
      */
@@ -298,9 +335,5 @@ public class Repository {
             System.out.println(e.getMessage());
         }
     }
-
-    // There should be a function to detect the difference between the current dir and the dir saved in headCommit
-
-
 
 }

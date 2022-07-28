@@ -94,15 +94,18 @@ Unstage the file if it is currently staged for addition.
 If the file is tracked in the current commit, stage it for removal and remove the file from the working directory 
 if the user has not already done so (do not remove it unless it is tracked in the current commit).
 
+### status
+
+### checkout
 
 ### log
 
 ```bash
 java gitlet.Main log
 ```
-Starting at the current head commit, display information about each commit backwards along the commit tree until the 
-initial commit, following the first parent commit links, ignoring any second parents found in merge commits. 
-(In regular Git, this is what you get with git log --first-parent). For every node in this history, the information 
+Starting at the current head commit, display information about each commit backwards along the commit tree until the
+initial commit, following the first parent commit links, ignoring any second parents found in merge commits.
+(In regular Git, this is what you get with git log --first-parent). For every node in this history, the information
 displayed is the commit id, the time the commit was made, and the commit message.
 
 
@@ -110,12 +113,21 @@ displayed is the commit id, the time the commit was made, and the commit message
 ```bash
 java gitlet.Main global-log
 ```
-Like log, except displays information about all commits ever made. 
+Like log, except displays information about all commits ever made.
 The commits are listed in the descending order of time, so the most recent commit will be printed at first place.
 
-### status
 
-### checkout
+### find 
+```bash
+java gitlet.Main find [commit message]
+```
+Prints out the ids of all commits that have the given commit message, one per line. 
+If there are multiple such commits, it prints the ids out on separate lines. 
+The commit message is a single operand; to indicate a multiword message, put the operand in quotation marks.
+
+
+
+
 
 ## Ideas of Design
 

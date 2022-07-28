@@ -29,6 +29,7 @@ public class Repository {
 
     /** The file under .gitlet/refs/heads that stores sha1 of the current commit*/
     private File head;
+
     /** The commit that "head" points to */
     private Commit headCommit;
     private String headCommitHash;
@@ -48,6 +49,7 @@ public class Repository {
         pathDict.put("remotes", join(GITLET_DIR, "refs", "remotes"));
         pathDict.put("HEAD", join(GITLET_DIR, "HEAD"));
         pathDict.put("index", join(GITLET_DIR, "index"));
+        pathDict.put("log", join(GITLET_DIR, "log"));
 
         /** Set up the current working space*/
         if (!GITLET_DIR.exists()) {
@@ -77,6 +79,7 @@ public class Repository {
             pathDict.get("remotes").mkdir();
             pathDict.get("HEAD").createNewFile();
             pathDict.get("index").createNewFile();
+            pathDict.get("log").createNewFile();
 
             // Initialize HEAD file
             head = new File(join("refs", "heads", "master").getPath());
@@ -94,6 +97,9 @@ public class Repository {
             // Constructing an empty index file
             index = new Staging();
             writeObject(pathDict.get("index"), index);
+
+            // Record the initial commit to log
+            writeContents(pathDict.get("log"), headCommit.getLogMessage());
 
         } catch (IOException e) {
             System.out.println(e.getMessage());
@@ -171,7 +177,8 @@ public class Repository {
 
 
     /** Saves a snapshot of tracked files in the current commit and staging area
-     * so they can be restored at a later time, creating a new commit. */
+     * so they can be restored at a later time, creating a new commit.
+     * */
     public void commit(String message) {
 
         checkInitializeCondition("commit");
@@ -209,6 +216,35 @@ public class Repository {
         // Empty the staging area
         index.clear();
         index.save();
+
+        // Record the commit information to the global log
+        String log_message = readContentsAsString(pathDict.get("log"));
+        writeContents(pathDict.get("log"), newCommit.getLogMessage() + "\n" + log_message);
+    }
+
+    /** Printing the information about each commit backwards along the commit tree until the initial commit */
+    public void log() {
+        checkInitializeCondition("log");
+        Commit commitPointer = headCommit;
+        String commitHash = headCommitHash;
+        while(true) {
+            // Print the information
+            System.out.println(commitPointer.getLogMessage());
+
+            // Stop after printing initial commit
+            if (commitPointer.getMessage().equals("initial commit")) {
+                break;
+            }
+
+            // Shift to parent commit
+            commitHash = commitPointer.getParent();
+            commitPointer = readObject(hashToPath(commitHash), Commit.class);
+
+        }
+    }
+
+    public void globalLog() {
+        System.out.println(readContentsAsString(pathDict.get("log")));
     }
 
 
@@ -229,6 +265,7 @@ public class Repository {
             }
         }
     }
+
 
 
 

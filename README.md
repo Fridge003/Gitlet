@@ -94,12 +94,29 @@ Unstage the file if it is currently staged for addition.
 If the file is tracked in the current commit, stage it for removal and remove the file from the working directory 
 if the user has not already done so (do not remove it unless it is tracked in the current commit).
 
+
+### log
+
+```bash
+java gitlet.Main log
+```
+Starting at the current head commit, display information about each commit backwards along the commit tree until the 
+initial commit, following the first parent commit links, ignoring any second parents found in merge commits. 
+(In regular Git, this is what you get with git log --first-parent). For every node in this history, the information 
+displayed is the commit id, the time the commit was made, and the commit message.
+
+
+### global-log
+```bash
+java gitlet.Main global-log
+```
+Like log, except displays information about all commits ever made. 
+The commits are listed in the descending order of time, so the most recent commit will be printed at first place.
+
 ### status
 
 ### checkout
 
 ## Ideas of Design
-
-### The design of .gitlet directory
 
 <!--- Maybe I should mention the beautiful graph in the spec, and explain the data structure --->

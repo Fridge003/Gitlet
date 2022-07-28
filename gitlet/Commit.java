@@ -100,6 +100,18 @@ public class Commit implements Serializable {
         snapshot.remove(filePath);
     }
 
+    /** Log message in proper format, including hashID, timestamp, and commit message.
+     *  If the commit has multiple parents, contain the merge information.
+     * */
+
+    public String getLogMessage() {
+        String log = "===\n";
+        log = log + "commit " + getHash() + "\n";
+        log = log + "Date: " + timestamp + "\n";
+        log = log + message + "\n";
+        return log;
+    }
+
 
 
     /**  serialize current commit and save it to directory .gitlet/objects/

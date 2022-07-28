@@ -20,18 +20,15 @@ public class Main {
         }
 
         String firstArg = args[0];
+        int argNum = args.length;
         Repository repo = new Repository();
         switch(firstArg) {
             case "init":
-                // initialize the repository if it hasn't been initialized
+                Utils.operandCheck(1, argNum);
                 repo.init();
                 break;
             case "add":
-                // add a file to the staging area
-                if (args.length != 2) {
-                    System.out.println("Incorrect operands.");
-                    System.exit(0);
-                }
+                Utils.operandCheck(2, argNum);
                 repo.add(args[1]);
                 break;
             case "commit":
@@ -39,14 +36,20 @@ public class Main {
                     System.out.println("Please enter a commit message.");
                     System.exit(0);
                 }
+                Utils.operandCheck(2, argNum);
                 repo.commit(args[1]);
                 break;
             case "rm":
-                if (args.length != 2) {
-                    System.out.println("Incorrect operands.");
-                    System.exit(0);
-                }
+                Utils.operandCheck(2, argNum);
                 repo.rm(args[1]);
+                break;
+            case "log":
+                Utils.operandCheck(1, argNum);
+                repo.log();
+                break;
+            case "global-log":
+                Utils.operandCheck(1, argNum);
+                repo.globalLog();
                 break;
             default:
                 System.out.println("No command with that name exists.");

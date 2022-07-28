@@ -236,4 +236,13 @@ class Utils {
         System.out.printf(msg, args);
         System.out.println();
     }
+
+
+    /** Util function for handling operand number errors */
+    static void operandCheck(int ExpectedNum, int argNum) {
+        if (argNum != ExpectedNum) {
+            System.out.println("Incorrect operands.");
+            System.exit(0);
+        }
+    }
 }

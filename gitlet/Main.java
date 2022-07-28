@@ -28,15 +28,25 @@ public class Main {
                 break;
             case "add":
                 // add a file to the staging area
-                if (args.length != 3) {
-                    System.out.println("You can only add one file per time in Gitlet!");
+                if (args.length != 2) {
+                    System.out.println("Incorrect operands.");
                     System.exit(0);
                 }
                 repo.add(args[1]);
                 break;
-            // TODO: FILL THE REST IN
             case "commit":
-                // TODO: Implement commit
+                if (args.length < 2) {
+                    System.out.println("Please enter a commit message.");
+                    System.exit(0);
+                }
+                repo.commit(args[1]);
+                break;
+            case "rm":
+                if (args.length != 2) {
+                    System.out.println("Incorrect operands.");
+                    System.exit(0);
+                }
+                repo.rm(args[1]);
                 break;
             default:
                 System.out.println("No command with that name exists.");

@@ -74,12 +74,25 @@ in which case the commit will now include the version of the file that was stage
 A commit will save and start tracking any files that were staged for addition but weren’t tracked by its parent. 
 Also, files tracked in the current commit may be untracked in the new commit as a result being staged for removal by the rm command (below).
 
+Each commit has a log message associated with it (the [Message] argument) 
+that describes the changes to the files in the commit. This is specified by the user. 
+The entire message should take up only one entry in the array args that is passed to main. 
+To include multiword messages, you’ll have to surround them in quotes.
+
+
 
 In real git, commits may have multiple parents (due to merging) and also have considerably more metadata. However in gitlet,
 commits have only one parent, and metadata only include message and timestamp.
 
 
-### remove
+### rm
+
+```bash
+java gitlet.Main rm [file name]
+```
+Unstage the file if it is currently staged for addition. 
+If the file is tracked in the current commit, stage it for removal and remove the file from the working directory 
+if the user has not already done so (do not remove it unless it is tracked in the current commit).
 
 ### status
 

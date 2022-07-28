@@ -9,7 +9,6 @@ import gitlet.Utils.*;
 import static gitlet.Utils.*;
 import gitlet.Commit;
 
-// TODO: any imports you need here
 
 /** Represents a gitlet repository.
  *  TODO: It's a good idea to give a description here of what else this Class
@@ -28,10 +27,11 @@ public class Repository {
     /** A dictionary that stores all the frequently used paths as File objects */
     public static final Map<String, File> pathDict = new HashMap<>();
 
-    /** The file under .gitlet/heads that points to the current commit*/
+    /** The file under .gitlet/refs/heads that stores sha1 of the current commit*/
     private File head;
     /** The commit that "head" points to */
     private Commit headCommit;
+    private String headCommitHash;
     /** index records all the files in the staging area */
     private Staging index;
 
@@ -50,31 +50,23 @@ public class Repository {
         pathDict.put("index", join(GITLET_DIR, "index"));
 
         /** Set up the current working space*/
-        if (!isInitialized()) {
+        if (!GITLET_DIR.exists()) {
             head = null;
+            headCommitHash = null;
             headCommit = null;
             index = null;
         } else {
-            head = new File(readContentsAsString(pathDict.get("HEAD")));
-            String headCommitHash = readContentsAsString(join(pathDict.get("gitlet"), head.getPath()));
+            head = join(pathDict.get("gitlet"), readContentsAsString(pathDict.get("HEAD")));
+            headCommitHash = readContentsAsString(head);
             headCommit = readObject(hashToPath(headCommitHash), Commit.class);
             index = readObject(pathDict.get("index"), Staging.class);
         }
     }
 
-
-    /** Whether this repository has been initialized by gitlet */
-    public boolean isInitialized() {
-        return GITLET_DIR.exists();
-    }
-
     /** If the repo hasn't been initialized, use init to initialize it by establishing the .gitlet directory */
     public void init() {
-        // If the repo has already been initialized, print the error message and abort
-        if (isInitialized()) {
-            System.out.println("A Gitlet version-control system already exists in the current directory.");
-            System.exit(0);
-        }
+
+        checkInitializeCondition("init");
 
         try {
             // establishing the directory stucture of .gitlet
@@ -91,7 +83,7 @@ public class Repository {
             writeContents(pathDict.get("HEAD"), head.getPath());
 
             // Constructing initial commit
-            headCommit = new Commit("initial commit", "null");
+            headCommit = new Commit("initial commit", "null", null);
             headCommit.saveCommit();
 
             // Constructing master branch
@@ -112,31 +104,132 @@ public class Repository {
 
     /** add a file to the staging area ( the staged files are recorded in .gitlet/index )*/
     public void add(String filePath) {
+
+        checkInitializeCondition("add");
+
         File addedFile = new File(filePath);
-        File indexPath = pathDict.get("index");
         if (!addedFile.exists()) {
             System.out.println("File does not exist.");
             System.exit(0);
         }
         String blobHash = sha1(readContents(addedFile));
-        /** TODO
-        if (same as the current commit version) {
+
+
+        // If the current working version of the file is identical to the version in the current commit,
+        // do not stage it to be added, and remove it from the staging area if it is already there
+        if (headCommit.tracked(filePath) && headCommit.getBlobVersion(filePath).equals(blobHash)) {
+            if(index.stagedForAddition(filePath)) {
+                index.cancelAdd(filePath);
+                System.out.println(filePath + " removed from staging area.");
+            }
+            index.save();
             return;
         }
-         */
+
         saveBlob(addedFile, blobHash);
-        index.put(addedFile, blobHash);
+        System.out.println("File saved in " + blobHash);
+        index.add(addedFile.getPath(), blobHash);
         index.save();
     }
 
+    /** Unstage the file if it is currently staged for addition.
+     * If the file is tracked in the current commit, stage it for removal
+     * */
+    public void rm(String filePath) {
+
+        checkInitializeCondition("rm");
+
+        File removedFile = new File(filePath);
+        boolean stagedForAddition = index.stagedForAddition(filePath);
+        boolean trackedByCurrentCommit = headCommit.tracked(filePath);
+
+
+        if ((!stagedForAddition) && (!trackedByCurrentCommit)) {
+            System.out.println("No reason to remove the file.");
+            System.exit(0);
+        }
+
+
+        // Unstage the file if it is currently staged for addition.
+        if (stagedForAddition) {
+            index.cancelAdd(filePath);
+            System.out.println(filePath + "removed from staging area.");
+         }
+
+        // If the file is tracked in the current commit, stage it for removal
+        // and remove the file from the working directory
+        if (trackedByCurrentCommit) {
+            index.remove(filePath);
+            if (removedFile.exists()) {
+                removedFile.delete();
+            }
+        }
+
+        index.save();
+
+    }
 
 
     /** Saves a snapshot of tracked files in the current commit and staging area
      * so they can be restored at a later time, creating a new commit. */
-    public void commit() {
+    public void commit(String message) {
 
+        checkInitializeCondition("commit");
 
+        // an empty staging area leads to a failure case
+        if (index.stageSize() == 0) {
+            System.out.println("No changes added to the commit.");
+            System.exit(0);
+        }
+
+        // Create a new commit that takes the current commit(represented by its sha1) as parent
+        // Its blobmap is initialized with headCommit.blobMap
+        Commit newCommit = new Commit(message, headCommitHash, headCommit.snapshot);
+
+        // Adding to the new commit the files for addition in the staging area
+        for (Map.Entry<String, String> entry:index.additionIndex.entrySet()){
+            newCommit.updateFileVersion(entry.getKey(), entry.getValue());
+            System.out.println("Addition: " + "key:"+entry.getKey()+"  value:"+ entry.getValue());
+        }
+
+        // Remove the files staged for removal from tracking
+        for (String removedFile: index.removalIndex) {
+            newCommit.removeFileFromTracking(removedFile);
+            System.out.println("Removal: " + removedFile);
+        }
+
+        // save the new commit
+        newCommit.saveCommit();
+
+        // Update the head of current branch
+        String newCommitHash = newCommit.getHash();
+        System.out.println("Head commit changed from " + headCommitHash + " to " + newCommitHash);
+        writeContents(head, newCommitHash);
+
+        // Empty the staging area
+        index.clear();
+        index.save();
     }
+
+
+    /** If the repo has been initialized, command "init" will cause failure;
+     * If the repo hasn't been initialized, commands other than "init" will cause failure.
+     */
+    public void checkInitializeCondition(String cmd) {
+        boolean initialized = GITLET_DIR.exists();
+        if (cmd.equals("init")) {
+            if (initialized) {
+                System.out.println("A Gitlet version-control system already exists in the current directory.");
+                System.exit(0);
+            }
+        } else {
+            if (!initialized) {
+                System.out.println("Not in an initialized Gitlet directory.");
+                System.exit(0);
+            }
+        }
+    }
+
 
 
 
@@ -156,6 +249,7 @@ public class Repository {
         if (blobPath.exists()) {
             return;
         }
+
         try {
             File blobDir = join(pathDict.get("objects"), blobHash.substring(0, 2));
             if (!blobDir.exists()) {
@@ -163,14 +257,10 @@ public class Repository {
             }
             blobPath.createNewFile();
             writeContents(blobPath, readContents(blob));
-            System.out.println("A New file saved in " + blobPath);
         } catch (IOException e) {
             System.out.println(e.getMessage());
         }
-
     }
-
-
 
     // There should be a function to detect the difference between the current dir and the dir saved in headCommit
 

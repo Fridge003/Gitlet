@@ -8,6 +8,8 @@ import java.util.Date;
 import static gitlet.Utils.*;
 import gitlet.Utils.*;
 import java.io.File;
+import java.util.HashMap;
+import java.util.Map;
 
 /** Represents a gitlet commit object. */
 public class Commit implements Serializable {
@@ -32,16 +34,26 @@ public class Commit implements Serializable {
      * */
     private String parent;
 
+    /** Snapshot is hash map that map the relative paths of files tracked by this commit
+     *  to their sha1 (since different files have different sha1, sha1 can denote the version of a file)
+     */
+    protected Map<String, String> snapshot;
+
     /** Constructor of Commit class */
-    public Commit(String message, String parent) {
+    public Commit(String message, String parent, Map<String, String> parentSnapshot) {
         this.message = message;
         this.parent = parent;
+        this.snapshot = new HashMap<>();
         if (parent == "null") { // The parent will be "null" only when the commit is "initial commit"
             Date date = new Date(0);
             this.timestamp = date.toString();
         } else {
             Date date = new Date();
             this.timestamp = date.toString();
+            // Copy the blobMap from its parent
+            for (Map.Entry<String, String> entry:parentSnapshot.entrySet()){
+                this.snapshot.put(entry.getKey(), entry.getValue());
+            }
         }
     }
 
@@ -57,10 +69,37 @@ public class Commit implements Serializable {
         return this.parent;
     }
 
+
     /** Get the SHA1 hash of the concatenation of metadata and content */
     public String getHash() {
         return sha1(serialize(this));
     }
+
+    public boolean tracked(String filePath) {
+        return snapshot.containsKey(filePath);
+    }
+
+
+    /** Input the relative path of a file, if this file is tracked by the current commit, return its sha1 hash,
+     * else return null */
+    public String getBlobVersion(String filePath) {
+        if (snapshot.containsKey(filePath)) {
+            return snapshot.get(filePath);
+        } else {
+            return null;
+        }
+    }
+
+    /** Update the version of a file through adding/changing the blob it maps to */
+    public void updateFileVersion(String filePath, String blobHash) {
+        snapshot.put(filePath, blobHash);
+    }
+
+    /** Stop this commit from tracking a file  */
+    public void removeFileFromTracking(String filePath) {
+        snapshot.remove(filePath);
+    }
+
 
 
     /**  serialize current commit and save it to directory .gitlet/objects/
@@ -81,14 +120,4 @@ public class Commit implements Serializable {
             System.out.println(e.getMessage());
         }
     }
-
-
-    // main function is created for debugging
-    public static void main(String[] args) {
-        Commit c1 = new Commit("commit 1", "null");
-        Commit c2 = new Commit("commit 2", "sdfsdf");
-        System.out.println(c1.getHash());
-        System.out.println(c2.getHash());
-    }
-
 }

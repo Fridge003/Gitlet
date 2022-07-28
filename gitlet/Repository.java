@@ -4,9 +4,10 @@ import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
 import java.io.IOException;
-import gitlet.Utils;
-
+import gitlet.Staging;
+import gitlet.Utils.*;
 import static gitlet.Utils.*;
+import gitlet.Commit;
 
 // TODO: any imports you need here
 
@@ -27,14 +28,18 @@ public class Repository {
     /** A dictionary that stores all the frequently used paths as File objects */
     public static final Map<String, File> pathDict = new HashMap<>();
 
-    private String head;
+    /** The file under .gitlet/heads that points to the current commit*/
+    private File head;
+    /** The commit that "head" points to */
     private Commit headCommit;
+    /** index records all the files in the staging area */
+    private Staging index;
 
 
     /** The Constructor of Repository instance */
     public Repository() {
-        head = null;
-        headCommit = null;
+
+        /** The directory structure */
         pathDict.put("cwd", CWD);
         pathDict.put("gitlet", GITLET_DIR);
         pathDict.put("objects", join(GITLET_DIR, "objects"));
@@ -43,6 +48,18 @@ public class Repository {
         pathDict.put("remotes", join(GITLET_DIR, "refs", "remotes"));
         pathDict.put("HEAD", join(GITLET_DIR, "HEAD"));
         pathDict.put("index", join(GITLET_DIR, "index"));
+
+        /** Set up the current working space*/
+        if (!isInitialized()) {
+            head = null;
+            headCommit = null;
+            index = null;
+        } else {
+            head = new File(readContentsAsString(pathDict.get("HEAD")));
+            String headCommitHash = readContentsAsString(join(pathDict.get("gitlet"), head.getPath()));
+            headCommit = readObject(hashToPath(headCommitHash), Commit.class);
+            index = readObject(pathDict.get("index"), Staging.class);
+        }
     }
 
 
@@ -56,7 +73,7 @@ public class Repository {
         // If the repo has already been initialized, print the error message and abort
         if (isInitialized()) {
             System.out.println("A Gitlet version-control system already exists in the current directory.");
-            return;
+            System.exit(0);
         }
 
         try {
@@ -69,21 +86,91 @@ public class Repository {
             pathDict.get("HEAD").createNewFile();
             pathDict.get("index").createNewFile();
 
-            // setting the initial commit
-            head = "refs/heads/master";
+            // Initialize HEAD file
+            head = new File(join("refs", "heads", "master").getPath());
+            writeContents(pathDict.get("HEAD"), head.getPath());
+
+            // Constructing initial commit
             headCommit = new Commit("initial commit", "null");
-            Utils.writeContents(pathDict.get("HEAD"), head);
             headCommit.saveCommit();
+
+            // Constructing master branch
             File masterBranch = join(pathDict.get("heads"), "master");
             String initialCommitHash = headCommit.getHash();
-            Utils.writeContents(masterBranch, initialCommitHash);
+            writeContents(masterBranch, initialCommitHash);
+
+            // Constructing an empty index file
+            index = new Staging();
+            writeObject(pathDict.get("index"), index);
 
         } catch (IOException e) {
             System.out.println(e.getMessage());
         }
+    }
+
+
+
+    /** add a file to the staging area ( the staged files are recorded in .gitlet/index )*/
+    public void add(String filePath) {
+        File addedFile = new File(filePath);
+        File indexPath = pathDict.get("index");
+        if (!addedFile.exists()) {
+            System.out.println("File does not exist.");
+            System.exit(0);
+        }
+        String blobHash = sha1(readContents(addedFile));
+        /** TODO
+        if (same as the current commit version) {
+            return;
+        }
+         */
+        saveBlob(addedFile, blobHash);
+        index.put(addedFile, blobHash);
+        index.save();
+    }
+
+
+
+    /** Saves a snapshot of tracked files in the current commit and staging area
+     * so they can be restored at a later time, creating a new commit. */
+    public void commit() {
 
 
     }
+
+
+
+    /** A small util function that maps a 40-char sha1 string to
+     * the relative path of its corresponding commit file*/
+    public static File hashToPath(String hashTag) {
+        return join(pathDict.get("objects"), hashTag.substring(0, 2), hashTag.substring(2));
+    }
+
+
+    /** Save the file as a blob object under .gitlet/objects */
+    public void saveBlob(File blob, String blobHash) {
+
+        File blobPath = hashToPath(blobHash);
+
+        // If this blob has been created before, then we don't need to save it again.
+        if (blobPath.exists()) {
+            return;
+        }
+        try {
+            File blobDir = join(pathDict.get("objects"), blobHash.substring(0, 2));
+            if (!blobDir.exists()) {
+                blobDir.mkdir();
+            }
+            blobPath.createNewFile();
+            writeContents(blobPath, readContents(blob));
+            System.out.println("A New file saved in " + blobPath);
+        } catch (IOException e) {
+            System.out.println(e.getMessage());
+        }
+
+    }
+
+
 
     // There should be a function to detect the difference between the current dir and the dir saved in headCommit
 

@@ -9,15 +9,9 @@ import static gitlet.Utils.*;
 import gitlet.Utils.*;
 import java.io.File;
 
-/** Represents a gitlet commit object.
- *  TODO: It's a good idea to give a description here of what else this Class
- *  does at a high level.
- *
- *  @author TODO
- */
+/** Represents a gitlet commit object. */
 public class Commit implements Serializable {
     /**
-     * TODO: add instance variables here.
      *
      * List all instance variables of the Commit class here with a useful
      * comment above them describing what that variable represents and how that
@@ -42,7 +36,7 @@ public class Commit implements Serializable {
     public Commit(String message, String parent) {
         this.message = message;
         this.parent = parent;
-        if (parent == "null") { // The parent of initial commit will be "null"
+        if (parent == "null") { // The parent will be "null" only when the commit is "initial commit"
             Date date = new Date(0);
             this.timestamp = date.toString();
         } else {
@@ -65,7 +59,7 @@ public class Commit implements Serializable {
 
     /** Get the SHA1 hash of the concatenation of metadata and content */
     public String getHash() {
-        return sha1(message, timestamp, parent);
+        return sha1(serialize(this));
     }
 
 
@@ -95,7 +89,6 @@ public class Commit implements Serializable {
         Commit c2 = new Commit("commit 2", "sdfsdf");
         System.out.println(c1.getHash());
         System.out.println(c2.getHash());
-
     }
 
 }

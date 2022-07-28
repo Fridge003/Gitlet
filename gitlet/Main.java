@@ -2,6 +2,7 @@ package gitlet;
 
 import java.io.File;
 import gitlet.Utils;
+
 /** Driver class for Gitlet, a subset of the Git version-control system.
  */
 
@@ -26,8 +27,12 @@ public class Main {
                 repo.init();
                 break;
             case "add":
-
-                // TODO: handle the `add [filename]` command
+                // add a file to the staging area
+                if (args.length != 3) {
+                    System.out.println("You can only add one file per time in Gitlet!");
+                    System.exit(0);
+                }
+                repo.add(args[1]);
                 break;
             // TODO: FILL THE REST IN
             case "commit":

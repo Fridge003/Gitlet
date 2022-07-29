@@ -3,9 +3,9 @@ package gitlet;
 import java.io.File;
 import java.io.BufferedReader;
 import java.io.FileReader;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 import java.io.IOException;
+
 import gitlet.Staging;
 import gitlet.Utils.*;
 import static gitlet.Utils.*;
@@ -13,10 +13,8 @@ import gitlet.Commit;
 
 
 /** Represents a gitlet repository.
- *  TODO: It's a good idea to give a description here of what else this Class
- *  does at a high level.
- *
- *  @author TODO
+ *  @author TODO: merge support in log command; extra points in status command
+ *  TODO: cancel the reomtes folder, only use a branch folder
  */
 public class Repository {
 
@@ -46,9 +44,7 @@ public class Repository {
         pathDict.put("cwd", CWD);
         pathDict.put("gitlet", GITLET_DIR);
         pathDict.put("objects", join(GITLET_DIR, "objects"));
-        pathDict.put("refs", join(GITLET_DIR, "refs"));
-        pathDict.put("heads", join(GITLET_DIR, "refs", "heads"));
-        pathDict.put("remotes", join(GITLET_DIR, "refs", "remotes"));
+        pathDict.put("branches", join(GITLET_DIR, "branches"));
         pathDict.put("HEAD", join(GITLET_DIR, "HEAD"));
         pathDict.put("index", join(GITLET_DIR, "index"));
         pathDict.put("log", join(GITLET_DIR, "log"));
@@ -60,7 +56,7 @@ public class Repository {
             headCommit = null;
             index = null;
         } else {
-            head = join(pathDict.get("gitlet"), readContentsAsString(pathDict.get("HEAD")));
+            head = new File(readContentsAsString(pathDict.get("HEAD")));
             headCommitHash = readContentsAsString(head);
             headCommit = readObject(hashToPath(headCommitHash), Commit.class);
             index = readObject(pathDict.get("index"), Staging.class);
@@ -76,15 +72,13 @@ public class Repository {
             // establishing the directory stucture of .gitlet
             pathDict.get("gitlet").mkdir();
             pathDict.get("objects").mkdir();
-            pathDict.get("refs").mkdir();
-            pathDict.get("heads").mkdir();
-            pathDict.get("remotes").mkdir();
+            pathDict.get("branches").mkdir();
             pathDict.get("HEAD").createNewFile();
             pathDict.get("index").createNewFile();
             pathDict.get("log").createNewFile();
 
             // Initialize HEAD file
-            head = new File(join("refs", "heads", "master").getPath());
+            head = new File(join(".gitlet", "branches", "master").getPath());
             writeContents(pathDict.get("HEAD"), head.getPath());
 
             // Constructing initial commit
@@ -92,7 +86,7 @@ public class Repository {
             headCommit.saveCommit();
 
             // Constructing master branch
-            File masterBranch = join(pathDict.get("heads"), "master");
+            File masterBranch = join(pathDict.get("branches"), "master");
             String initialCommitHash = headCommit.getHash();
             writeContents(masterBranch, initialCommitHash);
 
@@ -107,8 +101,6 @@ public class Repository {
             System.out.println(e.getMessage());
         }
     }
-
-
 
     /** add a file to the staging area ( the staged files are recorded in .gitlet/index )*/
     public void add(String filePath) {
@@ -125,7 +117,7 @@ public class Repository {
 
         // If the current working version of the file is identical to the version in the current commit,
         // do not stage it to be added, and remove it from the staging area if it is already there
-        if (headCommit.tracked(filePath) && headCommit.getBlobVersion(filePath).equals(blobHash)) {
+        if (headCommit.tracked(filePath) && headCommit.getBlobHash(filePath).equals(blobHash)) {
             if(index.stagedForAddition(filePath)) {
                 index.cancelAdd(filePath);
                 System.out.println(filePath + " removed from staging area.");
@@ -165,16 +157,16 @@ public class Repository {
          }
 
         // If the file is tracked in the current commit, stage it for removal
-        // and remove the file from the working directory
         if (trackedByCurrentCommit) {
             index.remove(filePath);
-            if (removedFile.exists()) {
-                removedFile.delete();
-            }
+        }
+
+        // Ensure that the file has been deleted
+        if (removedFile.exists()) {
+            removedFile.delete();
         }
 
         index.save();
-
     }
 
 
@@ -250,7 +242,9 @@ public class Repository {
     }
 
 
-    /**  Prints out the ids of all commits that have the given commit message */
+    /**  Prints out the ids of all commits that have the given commit message.
+     *   This function is implemented through searching line by line in the log file that records all the commit information.
+     * */
     public void find(String message) {
         BufferedReader reader;
         boolean found = false;
@@ -280,6 +274,102 @@ public class Repository {
             System.out.println("Found no commit with that message.");
             System.exit(0);
         }
+    }
+
+    /** Displays what branches currently exist, and marks the current branch with a *.
+     * Also displays what files have been staged for addition or removal.
+     * */
+    public void status() {
+        checkInitializeCondition("status");
+
+        // Print branches
+        System.out.println("=== Branches ===");
+        List<String> branches = plainFilenamesIn(pathDict.get("branches"));
+        for (String filename: branches) {
+            if (head.getName().equals(filename)) {
+                System.out.println("*" + filename);
+            } else {
+                System.out.println(filename);
+            }
+        }
+        System.out.print("\n");
+
+        // Collect all the files in the current working place.
+        // Ignore the functional files including "Makefile",".gitignore", "README.md", "pom.xml"
+        Set<String> currentFiles = new HashSet<String>(plainFilenamesIn(CWD));
+        List<String> ignoredFiles = Arrays.asList("Makefile", ".gitignore", "README.md", "pom.xml", ".DS_Store");
+        currentFiles.removeAll(ignoredFiles);
+
+        // Then catalogue the collected files into four disjoint sets
+        TreeSet<String> addedFiles = new TreeSet<>();
+        TreeSet<String> removedFiles = new TreeSet<>();
+        TreeSet<String> unstagedFiles = new TreeSet<>();
+        TreeSet<String> untrackedFiles = new TreeSet<>();
+
+        for (String file: currentFiles) {
+            String fileHash = sha1(readContents(new File(file)));
+            if (index.stagedForAddition(file)) {
+                // If recorded in the staging area for addition
+                String addedHash = index.getBlobHash(file);
+                if (addedHash.equals(fileHash)) {
+                    // The contents in working dir are identical to the staged version
+                    addedFiles.add(file);
+                } else {
+                    // Staged for addition, but with different contents than in the working directory;
+                    unstagedFiles.add(file + " (modified)");
+                }
+            } else if (headCommit.tracked(file)) {
+                // Tracked in the current commit, changed in the working directory, but not staged
+                if (!headCommit.getBlobHash(file).equals(fileHash)) {
+                    unstagedFiles.add(file + " (modified)");
+                }
+            } else { // neither staged for addition nor be tracked by HEAD commit
+                untrackedFiles.add(file);
+            }
+        }
+
+        //  Tracked in the current commit and deleted from the working directory, but not staged for removal
+        for (String file: headCommit.snapshot.keySet()) {
+            if ((!currentFiles.contains(file)) && (!index.stagedForRemoval(file))) {
+                unstagedFiles.add(file + " (deleted)");
+            }
+        }
+
+        // Staged for addition, but deleted in the working directory
+        for (String file: index.additionIndex.keySet()) {
+            if (!currentFiles.contains(file)) {
+                unstagedFiles.add(file + " (deleted)");
+            }
+        }
+
+        // Consider the files staged for removal
+        removedFiles.addAll(index.removalIndex);
+
+        // Print the contents of the four sets one after another.
+        // Since the TreeSet automatically sorts its elements, they are printed in lexicographical order.
+        System.out.println("=== Staged Files ===");
+        for (String file:addedFiles) {
+            System.out.println(file);
+        }
+        System.out.print("\n");
+
+        System.out.println("=== Removed Files ===");
+        for (String file:removedFiles) {
+            System.out.println(file);
+        }
+        System.out.print("\n");
+
+        System.out.println("=== Modifications Not Staged For Commit ===");
+        for (String file:unstagedFiles) {
+            System.out.println(file);
+        }
+        System.out.print("\n");
+
+        System.out.println("=== Untracked Files ===");
+        for (String file:untrackedFiles) {
+            System.out.println(file);
+        }
+        System.out.print("\n");
     }
 
 
@@ -335,5 +425,13 @@ public class Repository {
             System.out.println(e.getMessage());
         }
     }
+
+    /** Dump the content of a blob to a file with given path */
+    public void readBlob(String filePath, String blobHash) {
+
+
+
+    }
+
 
 }

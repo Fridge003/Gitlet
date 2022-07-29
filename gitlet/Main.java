@@ -55,6 +55,10 @@ public class Main {
                 Utils.operandCheck(2, argNum);
                 repo.find(args[1]);
                 break;
+            case "status":
+                Utils.operandCheck(1, argNum);
+                repo.status();
+                break;
             default:
                 System.out.println("No command with that name exists.");
         }

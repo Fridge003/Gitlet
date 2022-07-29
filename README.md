@@ -4,6 +4,9 @@
 such as init, add, commit, branch, checkout, etc.. This is also a project of UCB course CS61B: data structure. 
 
 In this repository, I implemented my own version of "Gitlet" in Java, with the help of the skeleton codes & testing codes provided by UCB. 
+Gitlet only supports local operations, so remote operations like "push" or "fetch" are not implemented in Gitlet. 
+Gitlet doesn't support subdirectories, so please put all the files under the working directory and don't create any subdirectories.
+
 For further details, please contact me through e-mail: eddiezhang@pku.edu.cn
 
 
@@ -95,8 +98,37 @@ If the file is tracked in the current commit, stage it for removal and remove th
 if the user has not already done so (do not remove it unless it is tracked in the current commit).
 
 ### status
+```bash
+java gitlet.Main status
+```
+Displays what branches currently exist, and marks the current branch with a *. 
+Also displays what files have been staged for addition or removal.
 
 ### checkout
+
+There are three ways to use the checkout command:
+
+1. 
+```bash 
+java gitlet.Main checkout -- [file name]
+```
+Takes the version of the file as it exists in the head commit and puts it in the working directory, 
+overwriting the version of the file that’s already there if there is one. 
+The new version of the file is not staged.
+
+2.
+```bash 
+java gitlet.Main checkout [commit id] -- [file name]
+```
+Takes the version of the file as it exists in the commit with the given id, 
+and puts it in the working directory, overwriting the version of the file that’s already there if there is one. The new version of the file is not staged.
+
+3.
+```bash 
+java gitlet.Main checkout [branch name]
+```
+
+
 
 ### log
 
@@ -127,8 +159,5 @@ The commit message is a single operand; to indicate a multiword message, put the
 
 
 
-
-
-## Ideas of Design
 
 <!--- Maybe I should mention the beautiful graph in the spec, and explain the data structure --->

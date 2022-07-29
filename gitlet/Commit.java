@@ -82,11 +82,11 @@ public class Commit implements Serializable {
 
     /** Input the relative path of a file, if this file is tracked by the current commit, return its sha1 hash,
      * else return null */
-    public String getBlobVersion(String filePath) {
+    public String getBlobHash(String filePath) {
         if (snapshot.containsKey(filePath)) {
             return snapshot.get(filePath);
         } else {
-            return null;
+            return "null";
         }
     }
 

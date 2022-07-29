@@ -168,6 +168,15 @@ class Utils {
             }
         };
 
+    /** filter out directories */
+    private static final FilenameFilter DIR_FILTER =
+            new FilenameFilter() {
+                @Override
+                public boolean accept(File dir, String name) {
+                    return !(new File(dir, name).isFile());
+                }
+            };
+
     /** Returns a list of the names of all plain files in the directory DIR, in
      *  lexicographic order as Java Strings.  Returns null if DIR does
      *  not denote a directory. */

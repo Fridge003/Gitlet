@@ -34,6 +34,16 @@ public class Staging implements Serializable {
         return additionIndex.containsKey(filePath);
     }
 
+
+    /** Return the sha1 of a file staged for addition, if this file hasn't been staged, return "null" */
+    public String getBlobHash(String filePath) {
+        if (stagedForAddition(filePath)) {
+            return additionIndex.get(filePath);
+        } else {
+            return "null";
+        }
+    }
+
     /** Delete a file from the additionIndex */
     public void cancelAdd(String filePath) {
         if (stagedForAddition(filePath)) {

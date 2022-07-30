@@ -5,16 +5,13 @@ import java.io.BufferedReader;
 import java.io.FileReader;
 import java.util.*;
 import java.io.IOException;
-
-import gitlet.Staging;
-import gitlet.Utils.*;
 import static gitlet.Utils.*;
-import gitlet.Commit;
+import static gitlet.RepoHelper.*;
+
 
 
 /** Represents a gitlet repository.
- *  @author TODO: merge support in log command; extra points in status command
- *  TODO: cancel the reomtes folder, only use a branch folder
+ *  @author TODO: Test checkout commands; Merge support in log command
  */
 public class Repository {
 
@@ -87,8 +84,8 @@ public class Repository {
 
             // Constructing master branch
             File masterBranch = join(pathDict.get("branches"), "master");
-            String initialCommitHash = headCommit.getHash();
-            writeContents(masterBranch, initialCommitHash);
+            headCommitHash = headCommit.getHash();
+            writeContents(masterBranch, headCommitHash);
 
             // Constructing an empty index file
             index = new Staging();
@@ -109,8 +106,7 @@ public class Repository {
 
         File addedFile = new File(filePath);
         if (!addedFile.exists()) {
-            System.out.println("File does not exist.");
-            System.exit(0);
+            raiseError("File does not exist.");
         }
         String blobHash = sha1(readContents(addedFile));
 
@@ -120,14 +116,12 @@ public class Repository {
         if (headCommit.tracked(filePath) && headCommit.getBlobHash(filePath).equals(blobHash)) {
             if(index.stagedForAddition(filePath)) {
                 index.cancelAdd(filePath);
-                System.out.println(filePath + " removed from staging area.");
             }
             index.save();
             return;
         }
 
         saveBlob(addedFile, blobHash);
-        System.out.println("File saved in " + blobHash);
         index.add(addedFile.getPath(), blobHash);
         index.save();
     }
@@ -145,27 +139,22 @@ public class Repository {
 
 
         if ((!stagedForAddition) && (!trackedByCurrentCommit)) {
-            System.out.println("No reason to remove the file.");
-            System.exit(0);
+            raiseError("No reason to remove the file.");
         }
-
 
         // Unstage the file if it is currently staged for addition.
         if (stagedForAddition) {
             index.cancelAdd(filePath);
-            System.out.println(filePath + "removed from staging area.");
          }
 
         // If the file is tracked in the current commit, stage it for removal
         if (trackedByCurrentCommit) {
             index.remove(filePath);
+            // Ensure that the file has been deleted
+            if (removedFile.exists()) {
+                removedFile.delete();
+            }
         }
-
-        // Ensure that the file has been deleted
-        if (removedFile.exists()) {
-            removedFile.delete();
-        }
-
         index.save();
     }
 
@@ -179,8 +168,7 @@ public class Repository {
 
         // an empty staging area leads to a failure case
         if (index.stageSize() == 0) {
-            System.out.println("No changes added to the commit.");
-            System.exit(0);
+            raiseError("No changes added to the commit.");
         }
 
         // Create a new commit that takes the current commit(represented by its sha1) as parent
@@ -190,13 +178,11 @@ public class Repository {
         // Adding to the new commit the files for addition in the staging area
         for (Map.Entry<String, String> entry:index.additionIndex.entrySet()){
             newCommit.updateFileVersion(entry.getKey(), entry.getValue());
-            System.out.println("Addition: " + "key:"+entry.getKey()+"  value:"+ entry.getValue());
         }
 
         // Remove the files staged for removal from tracking
         for (String removedFile: index.removalIndex) {
             newCommit.removeFileFromTracking(removedFile);
-            System.out.println("Removal: " + removedFile);
         }
 
         // save the new commit
@@ -204,7 +190,6 @@ public class Repository {
 
         // Update the head of current branch
         String newCommitHash = newCommit.getHash();
-        System.out.println("Head commit changed from " + headCommitHash + " to " + newCommitHash);
         writeContents(head, newCommitHash);
 
         // Empty the staging area
@@ -238,6 +223,7 @@ public class Repository {
     }
 
     public void globalLog() {
+        checkInitializeCondition("global-log");
         System.out.println(readContentsAsString(pathDict.get("log")));
     }
 
@@ -246,6 +232,8 @@ public class Repository {
      *   This function is implemented through searching line by line in the log file that records all the commit information.
      * */
     public void find(String message) {
+        checkInitializeCondition("find");
+
         BufferedReader reader;
         boolean found = false;
         try {
@@ -271,8 +259,7 @@ public class Repository {
         }
 
         if (!found) {
-            System.out.println("Found no commit with that message.");
-            System.exit(0);
+            raiseError("Found no commit with that message.");
         }
     }
 
@@ -311,15 +298,13 @@ public class Repository {
             if (index.stagedForAddition(file)) {
                 // If recorded in the staging area for addition
                 String addedHash = index.getBlobHash(file);
-                if (addedHash.equals(fileHash)) {
-                    // The contents in working dir are identical to the staged version
-                    addedFiles.add(file);
-                } else {
+                addedFiles.add(file);
+                if (!addedHash.equals(fileHash)) {
                     // Staged for addition, but with different contents than in the working directory;
                     unstagedFiles.add(file + " (modified)");
                 }
             } else if (headCommit.tracked(file)) {
-                // Tracked in the current commit, changed in the working directory, but not staged
+                // Tracked in the current commit, czshanged in the working directory, but not staged
                 if (!headCommit.getBlobHash(file).equals(fileHash)) {
                     unstagedFiles.add(file + " (modified)");
                 }
@@ -372,66 +357,156 @@ public class Repository {
         System.out.print("\n");
     }
 
-
-
-
-    /** If the repo has been initialized, command "init" will cause failure;
-     * If the repo hasn't been initialized, commands other than "init" will cause failure.
-     */
-    public void checkInitializeCondition(String cmd) {
-        boolean initialized = GITLET_DIR.exists();
-        if (cmd.equals("init")) {
-            if (initialized) {
-                System.out.println("A Gitlet version-control system already exists in the current directory.");
-                System.exit(0);
-            }
-        } else {
-            if (!initialized) {
-                System.out.println("Not in an initialized Gitlet directory.");
-                System.exit(0);
-            }
+    /** Takes the version of the file as it exists in the head commit
+     * and puts it in the working directory */
+    public void restoreFile(String fileName) {
+        checkInitializeCondition("checkout");
+        if (!headCommit.tracked(fileName)) {
+            raiseError("File does not exist in that commit.");
         }
+        dumpBlob(fileName, headCommit.getBlobHash(fileName));
+        index.cancelAdd(fileName);
+        index.save();
     }
 
+    /** Takes the version of the file as it exists in the commit with the given id,
+     * and puts it in the working directory.
+     * The commit ID is the six digits at the beginning of the 40-digit sha1 of commit */
+    public void restoreFileGivenCommit(String fileName, String commitID) {
+        checkInitializeCondition("checkout");
 
-
-
-
-    /** A small util function that maps a 40-char sha1 string to
-     * the relative path of its corresponding commit file*/
-    public static File hashToPath(String hashTag) {
-        return join(pathDict.get("objects"), hashTag.substring(0, 2), hashTag.substring(2));
-    }
-
-
-    /** Save the file as a blob object under .gitlet/objects */
-    public void saveBlob(File blob, String blobHash) {
-
-        File blobPath = hashToPath(blobHash);
-
-        // If this blob has been created before, then we don't need to save it again.
-        if (blobPath.exists()) {
-            return;
+        File targetCommitPath = commitIDToPath(commitID);
+        if (targetCommitPath == null) {
+            raiseError("No commit with that id exists.");
         }
 
-        try {
-            File blobDir = join(pathDict.get("objects"), blobHash.substring(0, 2));
-            if (!blobDir.exists()) {
-                blobDir.mkdir();
-            }
-            blobPath.createNewFile();
-            writeContents(blobPath, readContents(blob));
-        } catch (IOException e) {
-            System.out.println(e.getMessage());
+        Commit targetCommit = readObject(targetCommitPath, Commit.class);
+        if (!targetCommit.tracked(fileName)) {
+            raiseError("File does not exist in that commit.");
         }
+
+        dumpBlob(fileName, targetCommit.getBlobHash(fileName));
+        index.cancelAdd(fileName);
+        index.save();
     }
 
-    /** Dump the content of a blob to a file with given path */
-    public void readBlob(String filePath, String blobHash) {
+    /** Takes all files in the commit at the head of the given branch, and puts them in the working directory,
+     * overwriting the versions of the files that are already there if they exist.
+     * Also, change the HEAD pointer to the given branch and empty the staging area. */
+    public void checkoutBranch(String branchName) {
+        checkInitializeCondition("checkout");
 
+        if (head.getName().equals(branchName)) {
+            raiseError("No need to checkout the current branch.");
+        }
 
+        File targetBranch = join(".gitlet", "branches", branchName);
+        if (!targetBranch.exists()) {
+            raiseError("No such branch exists.");
+        }
 
+        File targetCommitPath = hashToPath(readContentsAsString(targetBranch));
+        Commit targetCommit = readObject(targetCommitPath, Commit.class); // The commit to restore.
+
+        // Clean unneeded files in the working dir
+        List<String> currentFiles = plainFilenamesIn(CWD);
+        for (String fileName: currentFiles) {
+            boolean trackedByHead = headCommit.tracked(fileName);
+            boolean trackedByTarget = targetCommit.tracked(fileName);
+            if (!trackedByHead) {
+                if (trackedByTarget) {
+                    raiseError("There is an untracked file in the way; delete it, or add and commit it first.");
+                }
+            } else {
+                if (!trackedByTarget) {
+                    File thisFile = join(CWD, fileName);
+                    thisFile.delete();
+                }
+            }
+        }
+
+        // Dump all the content tracked by target commit
+        for (String fileName: targetCommit.snapshot.keySet()) {
+            dumpBlob(fileName, targetCommit.getBlobHash(fileName));
+        }
+
+        // Move HEAD to the given branch
+        writeContents(pathDict.get("HEAD"), targetBranch.getPath());
+
+        // empty the staging area
+        index.clear();
+        index.save();
     }
 
 
+    /** Creates a new branch with the given name, and points it at the current head commit. */
+    public void branch(String branchName) {
+        checkInitializeCondition("branch");
+
+        File newBranch = join(pathDict.get("branches"), branchName);
+        if (newBranch.exists()) {
+            raiseError("A branch with that name already exists.");
+        }
+        writeContents(newBranch, headCommitHash);
+    }
+
+    /** Deletes the branch with the given name. */
+    public void rmBranch(String branchName) {
+        checkInitializeCondition("rm-branch");
+
+        if (head.getName().equals(branchName)) {
+            raiseError("Cannot remove the current branch.");
+        }
+
+        File removedBranch = join(pathDict.get("branches"), branchName);
+        if (!removedBranch.exists()) {
+            raiseError("A branch with that name does not exist.");
+        }
+
+        removedBranch.delete();
+    }
+
+    /** Checks out all the files tracked by the given commit.
+     * Removes tracked files that are not present in that commit.
+     * Also moves the current branch’s head to that commit node.
+     * The ID given should be 6-digit */
+    public void reset(String commitID) {
+        checkInitializeCondition("reset");
+
+        File targetCommitPath = commitIDToPath(commitID);
+        if (targetCommitPath == null) {
+            raiseError("No commit with that id exists.");
+        }
+
+        Commit targetCommit = readObject(targetCommitPath, Commit.class); // The commit to reset
+
+        // Clean unneeded files in the working dir
+        List<String> currentFiles = plainFilenamesIn(CWD);
+        for (String fileName: currentFiles) {
+            boolean trackedByHead = headCommit.tracked(fileName);
+            boolean trackedByTarget = targetCommit.tracked(fileName);
+            if (!trackedByHead) {
+                if (trackedByTarget) {
+                    raiseError("There is an untracked file in the way; delete it, or add and commit it first.");
+                }
+            } else {
+                if (!trackedByTarget) {
+                    File thisFile = join(CWD, fileName);
+                    thisFile.delete();
+                }
+            }
+        }
+
+        // Dump all the content tracked by target commit
+        for (String fileName: targetCommit.snapshot.keySet()) {
+            dumpBlob(fileName, targetCommit.getBlobHash(fileName));
+        }
+
+        // Move the current branch's head to target commit
+        writeContents(head, commitIDToSHA1(commitID));
+
+        // empty the staging area
+        index.clear();
+        index.save();
+    }
 }

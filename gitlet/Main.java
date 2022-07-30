@@ -59,6 +59,37 @@ public class Main {
                 Utils.operandCheck(1, argNum);
                 repo.status();
                 break;
+            case "branch":
+                Utils.operandCheck(2, argNum);
+                repo.branch(args[1]);
+                break;
+            case "rm-branch":
+                Utils.operandCheck(2, argNum);
+                repo.rmBranch(args[1]);
+                break;
+            case "checkout":
+                if (argNum == 2) {
+                    repo.checkoutBranch(args[1]);
+                } else if (argNum == 3){
+                    if (args[1].equals("--")) {
+                        repo.restoreFile(args[2]);
+                    } else {
+                        Utils.raiseError("Incorrect operands.");
+                    }
+                } else if (argNum == 4) {
+                    if (args[2].equals("--")) {
+                        repo.restoreFileGivenCommit(args[3], args[1]);
+                    } else {
+                        Utils.raiseError("Incorrect operands.");
+                    }
+                } else {
+                    Utils.raiseError("Incorrect operands.");
+                }
+                break;
+            case "reset":
+                Utils.operandCheck(2, argNum);
+                repo.reset(args[1]);
+                break;
             default:
                 System.out.println("No command with that name exists.");
         }

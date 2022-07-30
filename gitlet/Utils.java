@@ -254,4 +254,11 @@ class Utils {
             System.exit(0);
         }
     }
+
+    /** Print an error and exit the program */
+    static void raiseError(String message) {
+        System.out.println(message);
+        System.exit(0);
+    }
+
 }

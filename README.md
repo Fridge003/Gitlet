@@ -97,18 +97,10 @@ Unstage the file if it is currently staged for addition.
 If the file is tracked in the current commit, stage it for removal and remove the file from the working directory 
 if the user has not already done so (do not remove it unless it is tracked in the current commit).
 
-### status
-```bash
-java gitlet.Main status
-```
-Displays what branches currently exist, and marks the current branch with a *. 
-Also displays what files have been staged for addition or removal.
-
 ### checkout
 
 There are three ways to use the checkout command:
 
-1. 
 ```bash 
 java gitlet.Main checkout -- [file name]
 ```
@@ -116,19 +108,56 @@ Takes the version of the file as it exists in the head commit and puts it in the
 overwriting the version of the file that’s already there if there is one. 
 The new version of the file is not staged.
 
-2.
 ```bash 
 java gitlet.Main checkout [commit id] -- [file name]
 ```
 Takes the version of the file as it exists in the commit with the given id, 
 and puts it in the working directory, overwriting the version of the file that’s already there if there is one. The new version of the file is not staged.
 
-3.
 ```bash 
 java gitlet.Main checkout [branch name]
 ```
+Takes all files in the commit at the head of the given branch, 
+and puts them in the working directory, overwriting the versions of the files that are already there if they exist. 
+Also, at the end of this command, the given branch will now be considered the current branch (HEAD). 
+Any files that are tracked in the current branch but are not present in the checked-out branch are deleted. 
+The staging area is cleared, unless the checked-out branch is the current branch
 
 
+### branch
+```bash
+java gitlet.Main branch [branch name]
+```
+Creates a new branch with the given name, and points it at the current head commit.
+
+
+### rm-branch
+```bash
+java gitlet.Main rm-branch [branch name]
+```
+Deletes the branch with the given name. This only means to delete the pointer associated with the branch; 
+it does not mean to delete all commits that were created under the branch
+
+
+### reset
+
+```bash
+java gitlet.Main reset [commit id]
+```
+Checks out all the files tracked by the given commit. Removes tracked files that are not present in that commit. 
+Also moves the current branch’s head to that commit node.
+
+This command is similar to using the --hard option in real git, 
+as in `git reset --hard [commit hash]`.
+
+### status
+```bash
+java gitlet.Main status
+```
+Displays what branches currently exist, and marks the current branch with a *.
+Also displays what files have been staged for addition or removal.
+The staging area is cleared. The command is essentially checkout of an arbitrary commit 
+hat also changes the current branch head.
 
 ### log
 

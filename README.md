@@ -7,6 +7,8 @@ In this repository, I implemented my own version of "Gitlet" in Java, with the h
 Gitlet only supports local operations, so remote operations like "push" or "fetch" are not implemented in Gitlet. 
 Gitlet doesn't support subdirectories, so please put all the files under the working directory and don't create any subdirectories.
 
+**Please make sure that the JDK version is no earlier than 15.0, otherwise the program might be unable to compile.**
+
 For further details, please contact me through e-mail: eddiezhang@pku.edu.cn
 
 
@@ -123,6 +125,12 @@ Also, at the end of this command, the given branch will now be considered the cu
 Any files that are tracked in the current branch but are not present in the checked-out branch are deleted. 
 The staging area is cleared, unless the checked-out branch is the current branch
 
+### merge
+
+```bash
+java gitlet.Main merge [branch name]
+```
+Merges files from the given branch into the current branch.
 
 ### branch
 ```bash
@@ -185,6 +193,7 @@ java gitlet.Main find [commit message]
 Prints out the ids of all commits that have the given commit message, one per line. 
 If there are multiple such commits, it prints the ids out on separate lines. 
 The commit message is a single operand; to indicate a multiword message, put the operand in quotation marks.
+
 
 
 

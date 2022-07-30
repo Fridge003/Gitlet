@@ -11,7 +11,7 @@ import static gitlet.RepoHelper.*;
 
 
 /** Represents a gitlet repository.
- *  @author TODO: Test checkout commands; Merge support in log command
+ *  @author TODO: Merge support in log command
  */
 public class Repository {
 

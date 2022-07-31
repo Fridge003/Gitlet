@@ -15,17 +15,17 @@ For further details, please contact me through e-mail: eddiezhang@pku.edu.cn
 ## How to start Gitlet
 
 First, clone this repository, and move to the root of your local repository in your shell (Gitlet is used through command line).
-As you can see, there is a Makefile under the current path . 
+As you can see, there is a Makefile under the current directory. 
 
 First, input
 ```bash
 make
 ```
-the java files 
-will be compiled under the instruction of Makefile. Then list the items of folder 'gitlet' in the current path, you will find a bunch of compiled java class files.
-You can still stay here and regard the cloned repository as your working place, or you can copy the gitlet folder with compiled classes to 
-another folder as working place, and move yourself to that folder. Anyway, before you start using gitlet, you should ensure
-that there exists a folder called gitlet on your current directory, and the gitlet folder contains the compiled java .class files we need.
+The java files 
+will be compiled under the instruction of Makefile. Run command `ls gitlet`, you will find a bunch of compiled java class files listed.
+You can stay here and regard this repository as your working place. Also, you can copy the gitlet folder with compiled classes to 
+another folder as your working place, and move yourself to that folder. Anyway, before you start using gitlet, please ensure
+that there exists a folder called gitlet in your current directory, and the gitlet folder contains the compiled java .class files we need.
 
 For any command supported in Gitlet, it follows the form:
 ```bash
@@ -132,6 +132,8 @@ java gitlet.Main merge [branch name]
 ```
 Merges files from the given branch into the current branch.
 
+Real Git will force the user to resolve the merge conflicts before committing to complete the merge. 
+Gitlet just commits the merge, conflicts and all, so that you must use a separate commit to resolve problems.
 ### branch
 ```bash
 java gitlet.Main branch [branch name]

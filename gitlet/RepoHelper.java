@@ -1,10 +1,12 @@
 package gitlet;
 
-
+import java.awt.datatransfer.SystemFlavorMap;
 import java.io.File;
 import java.io.IOException;
-import java.util.List;
+import java.util.*;
 import static gitlet.Utils.*;
+import gitlet.Commit;
+import java.util.List;
 
 public class RepoHelper {
 
@@ -101,6 +103,67 @@ public class RepoHelper {
         for (String blobName: blobList) {
             if (blobName.substring(0, 4).equals(commitID.substring(2))) {
                 return commitID.substring(0, 2) + blobName;
+            }
+        }
+        return null;
+    }
+
+    /** Given 40-digit SHA1 of a commit,
+     * return a set of strings containing all its ancestors */
+    public static Set<String> getAncestors(String commitHash) {
+        Set<String> ancestors = new HashSet<>();
+        ancestors.add(commitHash);
+        File commitPath = hashToPath(commitHash);
+        Commit commit = readObject(commitPath, Commit.class);
+        if (commit.getMessage().equals("initial commit")) {
+            return ancestors;
+        }
+        ancestors.addAll(getAncestors(commit.getParent()));
+        if (commit.getSecondParent() != null) {
+            ancestors.addAll(getAncestors(commit.getSecondParent()));
+        }
+        return ancestors;
+    }
+
+
+    /** Given 40-digit SHA1 of two commits,
+     * find their most recent ancestor (namely the split of history tree) and return its 40-digit SHA1 */
+    public static String findSplit(String commitHash1, String commitHash2) {
+
+        File commitPath1 = hashToPath(commitHash1);
+        if (!commitPath1.exists()) {
+            raiseError("Commit with ID:" + commitHash1 + " doesn't exist.");
+        }
+
+        File commitPath2 = hashToPath(commitHash2);
+        if (!commitPath1.exists()) {
+            raiseError("Commit with ID:" + commitHash2 + " doesn't exist.");
+        }
+
+        // stores all the ancestors of the first commit (including itself)
+        Set<String> ancestorsOfCommit1= getAncestors(commitHash1);
+
+        // Then iterate through the ancestors of the second commit from most recent to least recent
+        // If iterating to a common ancestor of the two commits, stop and return its sha1
+        // Using bfs to do this
+        Commit commitPointer = null;
+        String currentCommitHash = commitHash2;
+        Deque<String> dq = new ArrayDeque<>();
+        dq.addLast(currentCommitHash);
+        while(!dq.isEmpty()) {
+            int layerSize = dq.size();
+            for (int i = 0; i < layerSize; ++i) {
+                currentCommitHash = dq.pop();
+                if (ancestorsOfCommit1.contains(currentCommitHash)) {
+                    return currentCommitHash;
+                }
+                commitPointer = readObject(hashToPath(currentCommitHash), Commit.class);
+                if (commitPointer.getParent() != null) {
+                    dq.addLast(commitPointer.getParent());
+                }
+                if (commitPointer.getSecondParent() != null) {
+                    dq.addLast(commitPointer.getSecondParent());
+                }
             }
         }
         return null;

@@ -10,9 +10,7 @@ import static gitlet.RepoHelper.*;
 
 
 
-/** Represents a gitlet repository.
- *  @author TODO: Merge support in log command
- */
+/** Represents a gitlet repository. */
 public class Repository {
 
     /** The current working directory. */
@@ -79,7 +77,7 @@ public class Repository {
             writeContents(pathDict.get("HEAD"), head.getPath());
 
             // Constructing initial commit
-            headCommit = new Commit("initial commit", "null", null);
+            headCommit = new Commit("initial commit", "null", null, null);
             headCommit.saveCommit();
 
             // Constructing master branch
@@ -114,9 +112,7 @@ public class Repository {
         // If the current working version of the file is identical to the version in the current commit,
         // do not stage it to be added, and remove it from the staging area if it is already there
         if (headCommit.tracked(filePath) && headCommit.getBlobHash(filePath).equals(blobHash)) {
-            if(index.stagedForAddition(filePath)) {
-                index.cancelAdd(filePath);
-            }
+            index.cancelAdd(filePath);
             index.save();
             return;
         }
@@ -162,7 +158,7 @@ public class Repository {
     /** Saves a snapshot of tracked files in the current commit and staging area
      * so they can be restored at a later time, creating a new commit.
      * */
-    public void commit(String message) {
+    public void commit(String message, String secondParent) {
 
         checkInitializeCondition("commit");
 
@@ -173,7 +169,7 @@ public class Repository {
 
         // Create a new commit that takes the current commit(represented by its sha1) as parent
         // Its blobmap is initialized with headCommit.blobMap
-        Commit newCommit = new Commit(message, headCommitHash, headCommit.snapshot);
+        Commit newCommit = new Commit(message, headCommitHash, headCommit.snapshot, secondParent);
 
         // Adding to the new commit the files for addition in the staging area
         for (Map.Entry<String, String> entry:index.additionIndex.entrySet()){
@@ -314,7 +310,7 @@ public class Repository {
         }
 
         //  Tracked in the current commit and deleted from the working directory, but not staged for removal
-        for (String file: headCommit.snapshot.keySet()) {
+        for (String file: headCommit.getTrackedFiles()) {
             if ((!currentFiles.contains(file)) && (!index.stagedForRemoval(file))) {
                 unstagedFiles.add(file + " (deleted)");
             }
@@ -426,7 +422,7 @@ public class Repository {
         }
 
         // Dump all the content tracked by target commit
-        for (String fileName: targetCommit.snapshot.keySet()) {
+        for (String fileName: targetCommit.getTrackedFiles()) {
             dumpBlob(fileName, targetCommit.getBlobHash(fileName));
         }
 
@@ -498,7 +494,7 @@ public class Repository {
         }
 
         // Dump all the content tracked by target commit
-        for (String fileName: targetCommit.snapshot.keySet()) {
+        for (String fileName: targetCommit.getTrackedFiles()) {
             dumpBlob(fileName, targetCommit.getBlobHash(fileName));
         }
 
@@ -508,5 +504,122 @@ public class Repository {
         // empty the staging area
         index.clear();
         index.save();
+    }
+
+
+    /**  Merges files from the given branch into the current branch. */
+    public void merge(String branchName) {
+        checkInitializeCondition("merge");
+
+        // First deal with failure cases
+        if (index.stageSize() > 0) {
+            raiseError("You have uncommitted changes.");
+        }
+        if (head.getName().equals(branchName)) {
+            raiseError("Cannot merge a branch with itself.");
+        }
+        File targetBranch = join(".gitlet", "branches", branchName);
+        if (!targetBranch.exists()) {
+            raiseError("No such branch exists.");
+        }
+
+        String targetCommitHash = readContentsAsString(targetBranch);
+        Commit targetCommit = readObject(hashToPath(targetCommitHash), Commit.class);
+
+        // Search for the split commit (latest common ancester) of current commit and given commit
+        String splitCommitHash = findSplit(headCommitHash, targetCommitHash);
+        Commit splitCommit = readObject(hashToPath(splitCommitHash), Commit.class);
+
+        // Cases when givenBranch and head lie on the same line
+        if (splitCommitHash.equals(targetCommitHash)) {
+            System.out.println("Given branch is an ancestor of the current branch.");
+            return;
+        }
+
+        if (splitCommitHash.equals(headCommitHash)) {
+            System.out.println("Current branch fast-forwarded.");
+            checkoutBranch(branchName);
+            return;
+        }
+
+        // Search for untracked dangerous files
+        List<String> currentFiles = plainFilenamesIn(CWD);
+        for (String fileName: currentFiles) {
+            boolean trackedByHead = headCommit.tracked(fileName);
+            boolean trackedByTarget = targetCommit.tracked(fileName);
+            boolean trackedBySplit = splitCommit.tracked(fileName);
+            if (!trackedByHead && (trackedByTarget || trackedBySplit)) {
+                raiseError("There is an untracked file in the way; delete it, or add and commit it first.");
+            }
+        }
+
+        // Files not present in split commit, not present in current branch but present in given branch
+        Set<String> filesTrackedByTarget = targetCommit.getTrackedFiles();
+        for (String fileName: filesTrackedByTarget) {
+            if (!splitCommit.tracked(fileName) && !headCommit.tracked(fileName)) {
+                String blobhash = targetCommit.getBlobHash(fileName);
+                dumpBlob(fileName, blobhash); // checkout the file
+                index.add(fileName, blobhash); // stage for addition
+            }
+        }
+
+        // Next deal with all the files present in split commit
+        boolean conflict = false;
+        Set<String> filesTrackedBySplit = splitCommit.getTrackedFiles();
+        for (String fileName: filesTrackedBySplit) {
+            File file = new File(fileName);
+            boolean trackedByHead = headCommit.tracked(fileName);
+            boolean trackedByTarget = targetCommit.tracked(fileName);
+            boolean modifiedInHead = !headCommit.getBlobHash(fileName).equals(splitCommit.getBlobHash(fileName));
+            boolean modifiedInTarget = !targetCommit.getBlobHash(fileName).equals(splitCommit.getBlobHash(fileName));
+
+
+            // Files modified in given branch but unmodified in current branch, take the modified version (including deletion)
+            if (!modifiedInHead && modifiedInTarget) {
+                if (trackedByTarget) {
+                    String blobhash = targetCommit.getBlobHash(fileName);
+                    dumpBlob(fileName, blobhash); // checkout the file
+                    index.add(fileName, blobhash); // stage for addition
+                } else {
+                    index.remove(fileName);
+                    if (file.exists()) {
+                        file.delete();
+                    }
+                }
+            }
+
+            // If the file is modified in current branch and given branch in different ways, report a conflict
+            if (modifiedInHead && modifiedInTarget) {
+                if (!headCommit.getBlobHash(fileName).equals(targetCommit.getBlobHash(fileName))) {
+                    conflict = true;
+                    String headContent = "";
+                    String targetContent = "";
+                    if (trackedByHead) {
+                        headContent = readContentsAsString(hashToPath(headCommit.getBlobHash(fileName)));
+                    }
+                    if (trackedByTarget) {
+                        targetContent = readContentsAsString(hashToPath(targetCommit.getBlobHash(fileName)));
+                    }
+                    String conflictContent = "<<<<<<< HEAD\n" + headContent
+                            + "=======\n" + targetContent
+                            + ">>>>>>>\n";
+                    writeContents(file, conflictContent);
+                    String conflictHash = sha1(readContents(file));
+                    saveBlob(file, conflictHash);
+                    index.add(fileName, conflictHash);
+                }
+            }
+        }
+
+
+        // Initialize the merged commit with head commit
+        // Commit mergedCommit = readObject(hashToPath(headCommitHash), Commit.class);
+        if (index.stageSize() > 0) {
+            commit("Merged " + branchName + " into " + head.getName() + ".", targetCommitHash);
+            if (conflict) {
+                System.out.println("Encountered a merge conflict.");
+            }
+        }
+
     }
 }

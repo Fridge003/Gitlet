@@ -37,7 +37,7 @@ public class Main {
                     System.exit(0);
                 }
                 Utils.operandCheck(2, argNum);
-                repo.commit(args[1]);
+                repo.commit(args[1], null);
                 break;
             case "rm":
                 Utils.operandCheck(2, argNum);
@@ -89,6 +89,10 @@ public class Main {
             case "reset":
                 Utils.operandCheck(2, argNum);
                 repo.reset(args[1]);
+                break;
+            case "merge":
+                Utils.operandCheck(2, argNum);
+                repo.merge(args[1]);
                 break;
             default:
                 System.out.println("No command with that name exists.");

@@ -10,6 +10,7 @@ import gitlet.Utils.*;
 import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 /** Represents a gitlet commit object. */
 public class Commit implements Serializable {
@@ -28,11 +29,15 @@ public class Commit implements Serializable {
      * */
     private String timestamp;
 
-    /** The parent commit of the current commit, represented as a SHA1 string
+    /** The parent commit of the current commit, represented as a 40-digit SHA1 string
      * containing the filename of serialized parent commit.
      * There is only one such parent since the commit history is a tree-like structure.
      * */
     private String parent;
+
+
+    /** Second parent is only useful when merging. Similarly to parent, also a 40-digit SHA1 string */
+    private String secondParent;
 
     /** Snapshot is hash map that map the relative paths of files tracked by this commit
      *  to their sha1 (since different files have different sha1, sha1 can denote the version of a file)
@@ -40,10 +45,11 @@ public class Commit implements Serializable {
     protected Map<String, String> snapshot;
 
     /** Constructor of Commit class */
-    public Commit(String message, String parent, Map<String, String> parentSnapshot) {
+    public Commit(String message, String parent, Map<String, String> parentSnapshot, String secondParent) {
         this.message = message;
         this.parent = parent;
         this.snapshot = new HashMap<>();
+        this.secondParent = secondParent;
         if (parent == "null") { // The parent will be "null" only when the commit is "initial commit"
             Date date = new Date(0);
             this.timestamp = date.toString();
@@ -61,18 +67,20 @@ public class Commit implements Serializable {
         return this.message;
     }
 
-    public String getTimestamp() {
-        return this.timestamp;
-    }
-
     public String getParent() {
         return this.parent;
     }
+
+    public String getSecondParent() {return this.secondParent;}
 
 
     /** Get the SHA1 hash of the concatenation of metadata and content */
     public String getHash() {
         return sha1(serialize(this));
+    }
+
+    public Set<String> getTrackedFiles() {
+        return snapshot.keySet();
     }
 
     public boolean tracked(String filePath) {
@@ -107,6 +115,9 @@ public class Commit implements Serializable {
     public String getLogMessage() {
         String log = "===\n";
         log = log + "commit " + getHash() + "\n";
+        if (secondParent != null) {
+            log = log + "Merge: " + parent.substring(0, 6) + " " + secondParent.substring(0, 6) + "\n";
+        }
         log = log + "Date: " + timestamp + "\n";
         log = log + message + "\n";
         return log;

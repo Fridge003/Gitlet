@@ -9,6 +9,8 @@ Gitlet doesn't support subdirectories, so please put all the files under the wor
 
 **Please make sure that the JDK version is no earlier than 15.0, otherwise the program might be unable to compile.**
 
+**This repo is for reference, so please don't copy if you are doing homework about this project. Plagiarism can only harm you badly.**
+
 For further details, please contact me through e-mail: eddiezhang@pku.edu.cn
 
 
